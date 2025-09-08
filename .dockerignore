@@ -1,0 +1,19 @@
+.git
+.gitignore
+.env
+.venv
+venv
+**/__pycache__/
+**/*.pyc
+node_modules
+frontend/node_modules
+frontend/.next
+frontend/out
+frontend/
+README.md
+docs/
+.cursor/
+scripts/
+
+# Keep models included (we COPY src/serverless/handler/models into /models)
+!src/serverless/handler/models/**

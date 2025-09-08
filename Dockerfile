@@ -1,0 +1,50 @@
+FROM runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04
+
+# System dependencies
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Python deps (torch/torchaudio are provided by base image)
+# Installing before copying app code maximizes Docker layer caching.
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir \
+       runpod \
+        transformers==4.42.4 \
+        huggingface_hub \
+        ctc-segmentation \
+        pypdf==4.3.1 \
+        soundfile \
+        numpy \
+        scipy \
+        pydantic>=2,<3 \
+        kokoro-tts || pip install kokoro || true
+
+# Offline/runtime environment
+ENV PYTHONUNBUFFERED=1 \
+    TRANSFORMERS_OFFLINE=1 \
+    HF_HOME=/models/hf \
+    KOKORO_MODEL_DIR=/models/kokoro \
+    W2V2_MODEL_DIR=/models/wav2vec2
+
+# Create model directories inside image and copy any vendored weights early
+# so they remain cached across application code changes.
+RUN mkdir -p /models/hf /models/kokoro /models/wav2vec2
+COPY src/serverless/handler/models/ /models/
+
+# Copy only backend and necessary files (avoid frontend)
+COPY entrypoint.sh /app/
+COPY src/ /app/src/
+COPY README.md /app/README.md
+
+# Healthcheck: verify ffmpeg and minimal Python imports
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+  CMD bash -lc "ffmpeg -version >/dev/null 2>&1 && python - <<'PY'\nimport torch, transformers; print('ok')\nPY" || exit 1
+
+# Entrypoint
+RUN chmod +x /app/entrypoint.sh
+ENTRYPOINT ["/app/entrypoint.sh"]
+
+

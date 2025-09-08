@@ -1,0 +1,20 @@
+# Node and Python basics
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local environment
+.env
+
+# Large model artifacts (kept out of git)
+src/serverless/handler/models/**
+!src/serverless/handler/models/README.md
+!src/serverless/handler/models/.gitkeep
+
+.cursor/
+
+
+
