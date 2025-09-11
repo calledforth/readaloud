@@ -8,19 +8,10 @@ RUN apt-get update \
 WORKDIR /app
 
 # Python deps (torch/torchaudio are provided by base image)
-# Installing before copying app code maximizes Docker layer caching.
+# Copy requirements early to maximize Docker layer caching.
+COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir \
-       runpod \
-        transformers==4.42.4 \
-        huggingface_hub \
-        ctc-segmentation \
-        pypdf==4.3.1 \
-        soundfile \
-        numpy \
-        scipy \
-        pydantic>=2,<3 \
-        kokoro
+    && pip install --no-cache-dir -r requirements.txt
 
 # Verify critical Python packages at build-time; fail fast if imports miss
 RUN python - <<'PY'
