@@ -20,7 +20,32 @@ RUN pip install --no-cache-dir --upgrade pip \
         numpy \
         scipy \
         pydantic>=2,<3 \
-        kokoro-tts || pip install kokoro || true
+        kokoro
+
+# Verify critical Python packages at build-time; fail fast if imports miss
+RUN python - <<'PY'
+import importlib, sys
+pkgs = [
+  ("runpod", None),
+  ("transformers", "__version__"),
+  ("huggingface_hub", "__version__"),
+  ("ctc_segmentation", "__version__"),
+  ("pypdf", "__version__"),
+  ("soundfile", "__version__"),
+  ("numpy", "__version__"),
+  ("scipy", "__version__"),
+  ("pydantic", "__version__"),
+  ("kokoro", None),
+]
+for name, attr in pkgs:
+    try:
+        m = importlib.import_module(name)
+        ver = getattr(m, attr) if attr else None
+        print(f"verify: {name} OK", (ver if isinstance(ver, str) else getattr(ver, "version", ver)))
+    except Exception as e:
+        print(f"verify: {name} FAILED: {e}")
+        sys.exit(2)
+PY
 
 # Offline/runtime environment
 ENV PYTHONUNBUFFERED=1 \
