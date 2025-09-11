@@ -37,7 +37,6 @@ COPY src/serverless/handler/models/ /models/
 # Copy only backend and necessary files (avoid frontend)
 COPY entrypoint.sh /app/
 COPY src/ /app/src/
-COPY README.md /app/
 
 # Healthcheck: verify ffmpeg and minimal Python imports
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
