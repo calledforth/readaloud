@@ -20,7 +20,7 @@ pkgs = [
   ("runpod", None),
   ("transformers", "__version__"),
   ("huggingface_hub", "__version__"),
-  ("ctc_segmentation", "__version__"),
+  ("ctc_segmentation", None),
   ("pypdf", "__version__"),
   ("soundfile", "__version__"),
   ("numpy", "__version__"),
