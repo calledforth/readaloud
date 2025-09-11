@@ -15,6 +15,7 @@ src/serverless/handler/models/**
 !src/serverless/handler/models/.gitkeep
 
 .cursor/
+frontend/
 
 
 
