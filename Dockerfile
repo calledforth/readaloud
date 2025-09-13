@@ -50,6 +50,19 @@ ENV PYTHONUNBUFFERED=1 \
 RUN mkdir -p /models/hf /models/kokoro /models/wav2vec2
 COPY src/serverless/handler/models/ /models/
 
+# Debug: Verify model files are copied correctly
+RUN echo "=== Checking model directories ===" && \
+    ls /models/ && \
+    echo "=== Wav2Vec2 model files ===" && \
+    ls /models/wav2vec2/ && \
+    echo "=== Kokoro model files ===" && \
+    ls /models/kokoro/ && \
+    echo "=== Checking for config.json ===" && \
+    test -f /models/wav2vec2/config.json && echo "wav2vec2 config.json: OK" || echo "wav2vec2 config.json: MISSING" && \
+    test -f /models/kokoro/config.json && echo "kokoro config.json: OK" || echo "kokoro config.json: MISSING" && \
+    echo "=== Model file sizes ===" && \
+    du -sh /models/wav2vec2/ /models/kokoro/ 2>/dev/null || echo "Could not get directory sizes"
+
 # Copy only backend and necessary files (avoid frontend)
 COPY entrypoint.sh /app/
 COPY src/ /app/src/
