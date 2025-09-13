@@ -19,12 +19,18 @@ def get_wav2vec2_alignment_components() -> Tuple[Any, Any]:
     Expects W2V2_MODEL_DIR to point to a directory with config and weights.
     """
     model_dir = _require_env("W2V2_MODEL_DIR")
+    print(f"DEBUG: Loading wav2vec2 from: {model_dir}")
+    print(f"DEBUG: Directory exists: {os.path.exists(model_dir)}")
+    if os.path.exists(model_dir):
+        print(f"DEBUG: Directory contents: {os.listdir(model_dir)}")
     try:
         from transformers import AutoProcessor, Wav2Vec2ForCTC  # type: ignore
     except Exception as exc:  # pragma: no cover - optional during dev
         raise RuntimeError("transformers is required for alignment components") from exc
 
+    print(f"DEBUG: About to load processor from: {model_dir}")
     processor = AutoProcessor.from_pretrained(model_dir, local_files_only=True)
+    print(f"DEBUG: About to load model from: {model_dir}")
     model = Wav2Vec2ForCTC.from_pretrained(model_dir, local_files_only=True)
     return processor, model
 
