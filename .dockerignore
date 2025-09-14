@@ -13,7 +13,6 @@ frontend/
 README.md
 docs/
 .cursor/
-scripts/
 
 # Keep models included (we COPY src/serverless/handler/models into /models)
 !src/serverless/handler/models/**
