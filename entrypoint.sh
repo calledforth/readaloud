@@ -13,22 +13,6 @@ python - <<'PY'
 print("startup: minimal check")
 PY
 
-# Quick model check
-echo "=== Quick Model Check ==="
-echo "W2V2_MODEL_DIR: $W2V2_MODEL_DIR"
-echo "KOKORO_MODEL_DIR: $KOKORO_MODEL_DIR"
-if [ -d "$W2V2_MODEL_DIR" ]; then
-    echo "✓ Wav2Vec2 dir exists"
-    ls "$W2V2_MODEL_DIR" | head -5
-    if [ -f "$W2V2_MODEL_DIR/config.json" ]; then
-        echo "✓ config.json found"
-    else
-        echo "✗ config.json MISSING"
-    fi
-else
-    echo "✗ Wav2Vec2 dir missing"
-fi
-echo "=== End Quick Check ==="
 
 exec python -u - <<'PY'
 import runpod

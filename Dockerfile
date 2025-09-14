@@ -45,10 +45,17 @@ ENV PYTHONUNBUFFERED=1 \
     KOKORO_MODEL_DIR=/models/kokoro \
     W2V2_MODEL_DIR=/models/wav2vec2
 
-# Create model directories inside image and copy any vendored weights early
+# Create model directories inside image and download models during build
 # so they remain cached across application code changes.
 RUN mkdir -p /models/hf /models/kokoro /models/wav2vec2
-COPY src/serverless/handler/models/ /models/
+# COPY src/serverless/handler/models/ /models/  # Commented out - models downloaded during build
+
+# Download models during build time
+COPY scripts/ /app/scripts/
+RUN echo "=== Downloading models during build ===" && \
+    cd /app && \
+    python scripts/fetch_models.py --dest-base /models && \
+    echo "=== Models downloaded successfully ==="
 
 # Debug: Verify model files are copied correctly
 RUN echo "=== Checking model directories ===" && \
