@@ -38,9 +38,8 @@ for name, attr in pkgs:
         sys.exit(2)
 PY
 
-# Offline/runtime environment
+# Runtime environment (offline mode set after model download)
 ENV PYTHONUNBUFFERED=1 \
-    TRANSFORMERS_OFFLINE=1 \
     HF_HOME=/models/hf \
     KOKORO_MODEL_DIR=/models/kokoro \
     W2V2_MODEL_DIR=/models/wav2vec2
@@ -56,6 +55,9 @@ RUN echo "=== Downloading models during build ===" && \
     cd /app && \
     python scripts/fetch_models.py --dest-base /models && \
     echo "=== Models downloaded successfully ==="
+
+# Set offline mode after models are downloaded
+ENV TRANSFORMERS_OFFLINE=1
 
 # Debug: Verify model files are copied correctly
 RUN echo "=== Checking model directories ===" && \
