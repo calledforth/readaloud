@@ -204,7 +204,7 @@ def handler(event: Dict[str, Any]) -> Dict[str, Any]:
             t_align = int((time.time() - t_align0) * 1000)
 
             # Encode WAV float32 PCM to base64 using soundfile
-            import io, soundfile as sf
+            import soundfile as sf
 
             buf = io.BytesIO()
             sf.write(buf, audio, sample_rate, format="WAV", subtype="FLOAT")
