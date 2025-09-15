@@ -50,11 +50,9 @@ def get_kokoro_tts() -> Any:
     # Import pipeline
     try:
         # Some releases expose KPipeline from kokoro_tts; keep alias flexible
-        from kokoro_tts import KPipeline  # type: ignore
+        from kokoro import KPipeline  # type: ignore
     except Exception as exc:
-        raise RuntimeError(
-            "kokoro_tts package is not installed or incompatible"
-        ) from exc
+        raise RuntimeError("kokoro package is not installed or incompatible") from exc
 
     # Device selection
     try:
