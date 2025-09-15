@@ -47,27 +47,25 @@ def get_kokoro_tts() -> Any:
         except Exception:
             pass
 
-    # Import pipeline
+    # Import pipeline from official package
     try:
-        # Some releases expose KPipeline from kokoro_tts; keep alias flexible
         from kokoro import KPipeline  # type: ignore
     except Exception as exc:
         raise RuntimeError("kokoro package is not installed or incompatible") from exc
 
-    # Device selection
-    try:
-        import torch  # type: ignore
-
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-    except Exception:
-        device = "cpu"
-
-    # Initialize pipeline pointing to baked model directory
-    # Most pipelines accept model and voices roots; adjust if package varies
-    pipeline = KPipeline(
-        model_dir=model_dir,
-        device=device,
-    )
+    def _infer_lang_code(voice_id: str) -> str:
+        prefix = (voice_id or "").strip().lower()[:1]
+        return {
+            "a": "a",  # American English
+            "b": "b",  # British English
+            "e": "e",  # Spanish
+            "f": "f",  # French
+            "h": "h",  # Hindi
+            "i": "i",  # Italian
+            "j": "j",  # Japanese
+            "p": "p",  # Portuguese (BR)
+            "z": "z",  # Chinese
+        }.get(prefix, "a")
 
     class _KokoroWrapper:
         def __init__(self, pipe, default_voice: str) -> None:
@@ -81,14 +79,38 @@ def get_kokoro_tts() -> Any:
             sample_rate: int = 24000,
             voice: str | None = None,
         ):
-            v = voice or self._default_voice
-            # Many pipelines expose parameters like speed/rate and sample_rate
-            audio = self._pipe(
-                text=text,
-                voice=v,
-                speed=rate,
-                sample_rate=sample_rate,
-            )
-            return audio, sample_rate
+            import os as _os
+            import numpy as _np
+            import torch as _torch  # type: ignore
 
+            v = voice or self._default_voice
+
+            # Try loading a local voice tensor; fall back to id string
+            voice_path = _os.path.join(model_dir, "voices", f"{v}.pt")
+            if _os.path.exists(voice_path):
+                try:
+                    voice_tensor = _torch.load(voice_path, weights_only=True)
+                except Exception:
+                    voice_tensor = v
+            else:
+                voice_tensor = v
+
+            # Run generator and concatenate chunks
+            gen = self._pipe(
+                text,
+                voice=voice_tensor,
+                speed=rate,
+                split_pattern=r"\n+",
+            )
+            chunks: list[_np.ndarray] = []
+            for _i, (_gs, _ps, audio_arr) in enumerate(gen):
+                chunks.append(_np.asarray(audio_arr, dtype=_np.float32))
+            if not chunks:
+                return _np.zeros((0,), dtype=_np.float32), sample_rate
+            audio = _np.concatenate(chunks, axis=0).astype(_np.float32)
+            return audio, 24000
+
+    # Initialize pipeline per language inferred from selected voice
+    lang_code = _infer_lang_code(selected_voice)
+    pipeline = KPipeline(lang_code=lang_code)
     return _KokoroWrapper(pipeline, selected_voice)
