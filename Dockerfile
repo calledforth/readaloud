@@ -57,7 +57,7 @@ RUN echo "=== Downloading models during build ===" && \
     echo "=== Models downloaded successfully ==="
 
 # Set offline mode after models are downloaded
-ENV TRANSFORMERS_OFFLINE=1
+# ENV TRANSFORMERS_OFFLINE=1
 
 # Debug: Verify model files are copied correctly
 RUN echo "=== Checking model directories ===" && \
