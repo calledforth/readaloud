@@ -54,6 +54,8 @@ export interface SynthesizeChunkResponseOk {
   sample_rate: number;
   timings: WordTiming[];
   inference_ms: { tts: number; align: number; total: number };
+  // Optional: non-fatal warning (e.g., minor TTS fallback). Clients may show unobtrusively.
+  tts_warning?: string;
   version: string;
 }
 

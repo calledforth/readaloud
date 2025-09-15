@@ -143,15 +143,14 @@ def handler(event: Dict[str, Any]) -> Dict[str, Any]:
             out_sr = sample_rate
             tts_error = None
             try:
-                if isinstance(kokoro, dict):
-                    raise RuntimeError("Kokoro package not available")
 
                 def _run_tts() -> Any:
-                    if hasattr(kokoro, "synthesize"):
-                        return kokoro.synthesize(
-                            cleaned_text, rate=rate, sample_rate=sample_rate
-                        )
-                    raise AttributeError("Kokoro.synthesize not found")
+                    return kokoro.synthesize(
+                        cleaned_text,
+                        rate=rate,
+                        sample_rate=sample_rate,
+                        voice=voice,
+                    )
 
                 with ThreadPoolExecutor(max_workers=1) as ex:
                     fut = ex.submit(_run_tts)

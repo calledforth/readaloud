@@ -77,6 +77,8 @@ class SynthesizeChunkResponseOk(BaseModel):
     sample_rate: int
     timings: List[WordTiming]
     inference_ms: Dict[str, Any]
+    # Optional warning to surface non-fatal TTS issues (e.g., missing voice, minor resample fallback)
+    tts_warning: Optional[str] = None
     version: str
 
 

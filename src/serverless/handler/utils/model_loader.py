@@ -32,47 +32,65 @@ def get_wav2vec2_alignment_components() -> Tuple[Any, Any]:
 @lru_cache(maxsize=1)
 def get_kokoro_tts() -> Any:
     """
-    Placeholder for Kokoro TTS lazy loader.
-    Loads model from KOKORO_MODEL_DIR and uses voice specified in SELECTED_VOICE.txt if present.
-    The exact loading mechanism depends on the Kokoro package used (wired in Section D).
+    Load Kokoro TTS via its pipeline API.
+    Expects KOKORO_MODEL_DIR to contain weights/config and voices directory.
     """
     model_dir = _require_env("KOKORO_MODEL_DIR")
+
+    # Resolve default voice from SELECTED_VOICE.txt when present
     selected_voice = "af_heart"
-    try:
-        voice_file = os.path.join(model_dir, "SELECTED_VOICE.txt")
-        if os.path.exists(voice_file):
+    voice_file = os.path.join(model_dir, "SELECTED_VOICE.txt")
+    if os.path.exists(voice_file):
+        try:
             with open(voice_file, "r", encoding="utf-8") as f:
                 selected_voice = f.read().strip() or selected_voice
-    except Exception:
-        pass
+        except Exception:
+            pass
 
-    # Attempt to load via Kokoro package, falling back to descriptor if unavailable
+    # Import pipeline
     try:
-        # Package name may be kokoro or kokoro_tts depending on release
-        try:
-            from kokoro import Kokoro  # type: ignore
-        except Exception:  # pragma: no cover
-            from kokoro_tts import Kokoro  # type: ignore
+        # Some releases expose KPipeline from kokoro_tts; keep alias flexible
+        from kokoro_tts import KPipeline  # type: ignore
+    except Exception as exc:
+        raise RuntimeError(
+            "kokoro_tts package is not installed or incompatible"
+        ) from exc
 
-        # Heuristic: model and voices under model_dir
-        model_path = os.path.join(model_dir, "kokoro-v1_0.pth")
-        config_json = os.path.join(model_dir, "config.json")
-        voice_path = os.path.join(model_dir, "voices", f"{selected_voice}.pt")
-
-        import torch
+    # Device selection
+    try:
+        import torch  # type: ignore
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        tts = Kokoro(
-            model_path=model_path,
-            config_path=config_json,
-            voice_path=voice_path,
-            device=device,
-        )
-        return tts
     except Exception:
-        # Return descriptor if package not available; handler will still run health/prep
-        return {
-            "model_dir": model_dir,
-            "voice": selected_voice,
-            "note": "Kokoro package not available; placeholder loaded",
-        }
+        device = "cpu"
+
+    # Initialize pipeline pointing to baked model directory
+    # Most pipelines accept model and voices roots; adjust if package varies
+    pipeline = KPipeline(
+        model_dir=model_dir,
+        device=device,
+    )
+
+    class _KokoroWrapper:
+        def __init__(self, pipe, default_voice: str) -> None:
+            self._pipe = pipe
+            self._default_voice = default_voice
+
+        def synthesize(
+            self,
+            text: str,
+            rate: float = 1.0,
+            sample_rate: int = 24000,
+            voice: str | None = None,
+        ):
+            v = voice or self._default_voice
+            # Many pipelines expose parameters like speed/rate and sample_rate
+            audio = self._pipe(
+                text=text,
+                voice=v,
+                speed=rate,
+                sample_rate=sample_rate,
+            )
+            return audio, sample_rate
+
+    return _KokoroWrapper(pipeline, selected_voice)
