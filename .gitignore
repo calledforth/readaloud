@@ -18,5 +18,7 @@ src/serverless/handler/models/**
 frontend/
 TODO.txt
 
+kokoro_probe.py
+
 
 

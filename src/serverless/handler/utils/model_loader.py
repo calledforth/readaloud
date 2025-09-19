@@ -114,11 +114,17 @@ def get_kokoro_tts() -> Any:
 
                 # Extract tokens with timestamps
                 for token in result.tokens:
+                    # Handle None timestamps (can happen for silence/pause tokens)
+                    start_ts = token.start_ts if token.start_ts is not None else 0.0
+                    end_ts = (
+                        token.end_ts if token.end_ts is not None else start_ts + 0.1
+                    )
+
                     all_tokens.append(
                         {
                             "text": token.text,
-                            "start_ms": int(token.start_ts * 1000) + cumulative_time_ms,
-                            "end_ms": int(token.end_ts * 1000) + cumulative_time_ms,
+                            "start_ms": int(start_ts * 1000) + cumulative_time_ms,
+                            "end_ms": int(end_ts * 1000) + cumulative_time_ms,
                         }
                     )
 
