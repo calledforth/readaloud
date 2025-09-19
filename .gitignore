@@ -16,6 +16,7 @@ src/serverless/handler/models/**
 
 .cursor/
 frontend/
+TODO.txt
 
 
 

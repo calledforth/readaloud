@@ -17,8 +17,8 @@ from src.shared.contracts.python_schemas import (
     SynthesizeChunkResponseOk,
     ErrorResponse,
 )
-from .utils.model_loader import get_kokoro_tts, get_wav2vec2_alignment_components
-from .utils.alignment import align_words_ctc
+from .utils.model_loader import get_kokoro_tts
+from .utils.alignment import process_kokoro_tokens
 
 
 VERSION = os.environ.get("READALOUD_VERSION", "0.1.0")
@@ -122,12 +122,8 @@ def handler(event: Dict[str, Any]) -> Dict[str, Any]:
                 return _err("BadInput", "doc_id, paragraph_id, text are required")
             cleaned_text = clean_text_for_tts(text)
 
-            # Lazy-load models with error taxonomy
-            try:
-                kokoro = get_kokoro_tts()
-                processor, w2v2_model = get_wav2vec2_alignment_components()
-            except Exception as exc:
-                return _err("ModelLoad", str(exc))
+            # Lazy-load Kokoro model
+            kokoro = get_kokoro_tts()
 
             # TTS synthesis via Kokoro package with offline weights (timeout guard)
             import numpy as np
@@ -139,68 +135,37 @@ def handler(event: Dict[str, Any]) -> Dict[str, Any]:
             )
 
             t_tts0 = time.time()
-            audio = None
-            out_sr = sample_rate
-            tts_error = None
-            try:
 
-                def _run_tts() -> Any:
-                    return kokoro.synthesize(
-                        cleaned_text,
-                        rate=rate,
-                        sample_rate=sample_rate,
-                        voice=voice,
-                    )
+            def _run_tts() -> Any:
+                return kokoro.synthesize(
+                    cleaned_text,
+                    rate=rate,
+                    sample_rate=sample_rate,
+                    voice=voice,
+                )
 
-                with ThreadPoolExecutor(max_workers=1) as ex:
-                    fut = ex.submit(_run_tts)
-                    res = fut.result(timeout=max(1, remaining_ms(t0) / 1000.0))
-                if isinstance(res, tuple) and len(res) == 2:
-                    audio, out_sr = res
-                else:
-                    audio = res
+            with ThreadPoolExecutor(max_workers=1) as ex:
+                fut = ex.submit(_run_tts)
+                audio, out_sr, kokoro_tokens = fut.result(
+                    timeout=max(1, remaining_ms(t0) / 1000.0)
+                )
 
-                if "torch" in str(type(audio)):
-                    import torch  # type: ignore
+            if "torch" in str(type(audio)):
+                import torch  # type: ignore
 
-                    audio = audio.detach().cpu().float().numpy()
-                audio = np.asarray(audio, dtype=np.float32).reshape(-1)
+                audio = audio.detach().cpu().float().numpy()
+            audio = np.asarray(audio, dtype=np.float32).reshape(-1)
 
-                if out_sr != sample_rate:
-                    try:
-                        from scipy.signal import resample_poly
+            if out_sr != sample_rate:
+                from scipy.signal import resample_poly
 
-                        audio = resample_poly(audio, sample_rate, out_sr).astype(
-                            np.float32
-                        )
-                    except Exception:
-                        pass
-            except FuturesTimeout:
-                return _err("Timeout", "tts_timeout")
-            except Exception as exc:
-                # Fallback: short silence to keep pipeline testable
-                duration_s = max(1.0, min(6.0, len(text) / 14.0))
-                num_samples = int(duration_s * sample_rate)
-                audio = np.zeros((num_samples,), dtype=np.float32)
-                tts_error = str(exc)
+                audio = resample_poly(audio, sample_rate, out_sr).astype(np.float32)
+
             t_tts = int((time.time() - t_tts0) * 1000)
 
-            # Alignment timings (heuristic now)
+            # Process native Kokoro timestamps
             t_align0 = time.time()
-            try:
-
-                def _run_align() -> Any:
-                    return align_words_ctc(
-                        cleaned_text, audio, sample_rate, processor, w2v2_model
-                    )
-
-                with ThreadPoolExecutor(max_workers=1) as ex:
-                    fut = ex.submit(_run_align)
-                    timings = fut.result(timeout=max(1, remaining_ms(t0) / 1000.0))
-            except FuturesTimeout:
-                return _err("Timeout", "align_timeout")
-            except Exception as exc:
-                return _err("AlignError", str(exc))
+            timings = process_kokoro_tokens(kokoro_tokens)
             t_align = int((time.time() - t_align0) * 1000)
 
             # Encode WAV float32 PCM to base64 using soundfile
@@ -220,8 +185,6 @@ def handler(event: Dict[str, Any]) -> Dict[str, Any]:
                 "timings": timings,
                 "inference_ms": {"tts": t_tts, "align": t_align, "total": t_total},
             }
-            if tts_error:
-                body["tts_warning"] = tts_error
             # Validate response
             resp = SynthesizeChunkResponseOk(**_ok(body))
             out = resp.model_dump()
@@ -233,7 +196,6 @@ def handler(event: Dict[str, Any]) -> Dict[str, Any]:
                         "paragraph_id": paragraph_id,
                         "ok": True,
                         "dur_ms": body["inference_ms"],
-                        "tts_warning": tts_error or None,
                         "version": VERSION,
                     }
                 )

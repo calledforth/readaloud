@@ -115,7 +115,16 @@ def clean_text_for_tts(raw_text: str, language: str = "en") -> str:
 def _split_into_paragraphs(text: str) -> List[str]:
     # Split on blank lines; keep paragraphs non-empty
     parts = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
-    return parts if parts else ([text.strip()] if text.strip() else [])
+    if parts:
+        return parts
+
+    # If no double newlines, try splitting on single newlines
+    single_line_parts = [p.strip() for p in text.split("\n") if p.strip()]
+    if len(single_line_parts) > 1:
+        return single_line_parts
+
+    # If still one big block, return as-is for further chunking
+    return [text.strip()] if text.strip() else []
 
 
 def _greedy_chunk(paragraphs: List[str], max_paragraph_chars: int) -> List[str]:
@@ -138,12 +147,29 @@ def _greedy_chunk(paragraphs: List[str], max_paragraph_chars: int) -> List[str]:
         if len(p) <= max_paragraph_chars:
             chunks.append(p)
         else:
-            # Hard wrap overly long paragraph
-            start = 0
-            while start < len(p):
-                end = min(start + max_paragraph_chars, len(p))
-                chunks.append(p[start:end])
-                start = end
+            # Smart wrap overly long paragraph at word boundaries
+            words = p.split()
+            current_chunk = []
+            current_len = 0
+
+            for word in words:
+                word_len = len(word) + (1 if current_chunk else 0)  # +1 for space
+                if current_len + word_len <= max_paragraph_chars:
+                    current_chunk.append(word)
+                    current_len += word_len
+                else:
+                    if current_chunk:
+                        chunks.append(" ".join(current_chunk))
+                        current_chunk = [word]
+                        current_len = len(word)
+                    else:
+                        # Single word too long, force split
+                        chunks.append(word[:max_paragraph_chars])
+                        current_chunk = [word[max_paragraph_chars:]]
+                        current_len = len(current_chunk[0])
+
+            if current_chunk:
+                chunks.append(" ".join(current_chunk))
     if buf:
         chunks.append("\n\n".join(buf))
     return chunks

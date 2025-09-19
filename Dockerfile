@@ -18,9 +18,7 @@ RUN python - <<'PY'
 import importlib, sys
 pkgs = [
   ("runpod", None),
-  ("transformers", "__version__"),
   ("huggingface_hub", "__version__"),
-  ("ctc_segmentation", None),
   ("pypdf", "__version__"),
   ("soundfile", "__version__"),
   ("numpy", "__version__"),
@@ -41,19 +39,18 @@ PY
 # Runtime environment (offline mode set after model download)
 ENV PYTHONUNBUFFERED=1 \
     HF_HOME=/models/hf \
-    KOKORO_MODEL_DIR=/models/kokoro \
-    W2V2_MODEL_DIR=/models/wav2vec2
+    KOKORO_MODEL_DIR=/models/kokoro
 
 # Create model directories inside image and download models during build
 # so they remain cached across application code changes.
-RUN mkdir -p /models/hf /models/kokoro /models/wav2vec2
+RUN mkdir -p /models/hf /models/kokoro
 # COPY src/serverless/handler/models/ /models/  # Commented out - models downloaded during build
 
 # Download models during build time
 COPY scripts/ /app/scripts/
 RUN echo "=== Downloading models during build ===" && \
     cd /app && \
-    python scripts/fetch_models.py --dest-base /models && \
+    python scripts/fetch_models.py --dest-base /models --skip-w2v2 && \
     echo "=== Models downloaded successfully ==="
 
 # Set offline mode after models are downloaded
@@ -62,15 +59,12 @@ RUN echo "=== Downloading models during build ===" && \
 # Debug: Verify model files are copied correctly
 RUN echo "=== Checking model directories ===" && \
     ls /models/ && \
-    echo "=== Wav2Vec2 model files ===" && \
-    ls /models/wav2vec2/ && \
     echo "=== Kokoro model files ===" && \
     ls /models/kokoro/ && \
     echo "=== Checking for config.json ===" && \
-    test -f /models/wav2vec2/config.json && echo "wav2vec2 config.json: OK" || echo "wav2vec2 config.json: MISSING" && \
     test -f /models/kokoro/config.json && echo "kokoro config.json: OK" || echo "kokoro config.json: MISSING" && \
     echo "=== Model file sizes ===" && \
-    du -sh /models/wav2vec2/ /models/kokoro/ 2>/dev/null || echo "Could not get directory sizes"
+    du -sh /models/kokoro/ 2>/dev/null || echo "Could not get directory sizes"
 
 # Copy only backend and necessary files (avoid frontend)
 COPY entrypoint.sh /app/

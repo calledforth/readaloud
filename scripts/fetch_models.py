@@ -85,19 +85,26 @@ def main() -> int:
     parser.add_argument(
         "--w2v2-revision", default=None, help="Optional revision/tag for Wav2Vec2"
     )
+    parser.add_argument(
+        "--skip-w2v2",
+        action="store_true",
+        default=True,
+        help="Skip downloading Wav2Vec2 model (default: True)",
+    )
 
     args = parser.parse_args()
 
     dest_base = Path(args.dest_base).resolve()
     kokoro_dir = dest_base / "kokoro"
-    w2v2_dir = dest_base / "wav2vec2"
 
     # Kokoro
     download_repo(args.kokoro_repo, kokoro_dir, revision=args.kokoro_revision)
     write_text(kokoro_dir / "SELECTED_VOICE.txt", f"{args.voice}\n")
 
-    # Wav2Vec2
-    download_repo(args.w2v2_repo, w2v2_dir, revision=args.w2v2_revision)
+    # Wav2Vec2 (optional)
+    if not args.skip_w2v2:
+        w2v2_dir = dest_base / "wav2vec2"
+        download_repo(args.w2v2_repo, w2v2_dir, revision=args.w2v2_revision)
 
     # Emit env file snippet for convenience
     env_snippet = (
@@ -105,8 +112,9 @@ def main() -> int:
         f"TRANSFORMERS_OFFLINE=1\n"
         f"HF_HOME={dest_base}\n"
         f"KOKORO_MODEL_DIR={kokoro_dir}\n"
-        f"W2V2_MODEL_DIR={w2v2_dir}\n"
     )
+    if not args.skip_w2v2:
+        env_snippet += f"W2V2_MODEL_DIR={dest_base}/wav2vec2\n"
     print("\nAdd these to your .env (or verify .env.example):\n" + env_snippet)
     return 0
 

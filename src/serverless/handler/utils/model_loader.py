@@ -95,20 +95,42 @@ def get_kokoro_tts() -> Any:
             else:
                 voice_tensor = v
 
-            # Run generator and concatenate chunks
+            # Run generator using new API
             gen = self._pipe(
                 text,
                 voice=voice_tensor,
                 speed=rate,
                 split_pattern=r"\n+",
             )
+
             chunks: list[_np.ndarray] = []
-            for _i, (_gs, _ps, audio_arr) in enumerate(gen):
+            all_tokens = []
+            cumulative_time_ms = 0
+
+            for result in gen:
+                # Extract audio from new API
+                audio_arr = result.audio.cpu().numpy()
                 chunks.append(_np.asarray(audio_arr, dtype=_np.float32))
+
+                # Extract tokens with timestamps
+                for token in result.tokens:
+                    all_tokens.append(
+                        {
+                            "text": token.text,
+                            "start_ms": int(token.start_ts * 1000) + cumulative_time_ms,
+                            "end_ms": int(token.end_ts * 1000) + cumulative_time_ms,
+                        }
+                    )
+
+                # Update cumulative time for next chunk
+                chunk_duration_ms = int(len(audio_arr) / 24000 * 1000)
+                cumulative_time_ms += chunk_duration_ms
+
             if not chunks:
-                return _np.zeros((0,), dtype=_np.float32), sample_rate
+                return _np.zeros((0,), dtype=_np.float32), sample_rate, []
+
             audio = _np.concatenate(chunks, axis=0).astype(_np.float32)
-            return audio, 24000
+            return audio, 24000, all_tokens
 
     # Initialize pipeline per language inferred from selected voice
     lang_code = _infer_lang_code(selected_voice)
