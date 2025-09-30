@@ -285,9 +285,27 @@ def _enforce_min_chunk_length(chunks: List[str], min_chars: int) -> List[str]:
     return result
 
 
+def segment_text_only(raw_text: str, max_paragraph_chars: int = 2000) -> List[str]:
+    """
+    Segment text into chunks WITHOUT cleaning.
+    Used by prepare_document to preserve original formatting for UI display.
+    """
+    # Only minimal normalization to help with segmentation
+    text = raw_text.replace("\r\n", "\n").replace("\r", "\n")
+    paragraphs = _split_into_paragraphs(text)
+    chunks = _greedy_chunk(paragraphs, max_paragraph_chars)
+    # Enforce a minimum readable chunk length (e.g., avoid tiny fragments)
+    chunks = _enforce_min_chunk_length(chunks, min_chars=20)
+    return chunks
+
+
 def clean_and_segment_text(
     raw_text: str, language: str = "en", max_paragraph_chars: int = 2000
 ) -> List[str]:
+    """
+    DEPRECATED: Use segment_text_only() for prepare_document.
+    This function cleans AND segments, kept for backwards compatibility.
+    """
     cleaned = clean_text_for_tts(raw_text, language=language)
     paragraphs = _split_into_paragraphs(cleaned)
     chunks = _greedy_chunk(paragraphs, max_paragraph_chars)

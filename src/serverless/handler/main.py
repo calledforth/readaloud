@@ -9,7 +9,11 @@ import io
 import base64 as _b64
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 
-from .utils.cleaning import clean_and_segment_text, clean_text_for_tts
+from .utils.cleaning import (
+    clean_and_segment_text,
+    clean_text_for_tts,
+    segment_text_only,
+)
 from src.shared.contracts.python_schemas import (
     PrepareDocumentRequest,
     PrepareDocumentResponseOk,
@@ -79,9 +83,8 @@ def handler(event: Dict[str, Any]) -> Dict[str, Any]:
                     return _err("BadInput", f"pdf_decode_or_extract_failed: {exc}")
             else:
                 raw_text = prep_input.get("raw_text") or ""
-            paragraphs = clean_and_segment_text(
-                raw_text, language=language, max_paragraph_chars=max_chars
-            )
+            # Use segment_text_only to preserve original formatting for UI
+            paragraphs = segment_text_only(raw_text, max_paragraph_chars=max_chars)
             para_objs = [
                 {"paragraph_id": f"p{idx:04d}", "text": p}
                 for idx, p in enumerate(paragraphs, start=1)
