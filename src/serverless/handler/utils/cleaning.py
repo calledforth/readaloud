@@ -100,9 +100,97 @@ def _map_simple_inline_citations(text: str) -> str:
     return re.sub(r"\[(\d{1,3})\]", r"reference \1", text)
 
 
+def _strip_markdown_formatting(text: str) -> str:
+    """
+    Strip markdown formatting for TTS while preserving the actual text content.
+    Handles: headers, bold, italic, code, links, lists, blockquotes, horizontal rules, etc.
+    """
+    # Strip code blocks first (``` or ~~~)
+    text = re.sub(r"```[^`]*```", "", text, flags=re.DOTALL)
+    text = re.sub(r"~~~[^~]*~~~", "", text, flags=re.DOTALL)
+
+    # Strip inline code (`code`)
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+
+    # Strip links but keep link text: [text](url) -> text
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+
+    # Strip reference-style links: [text][ref] -> text
+    text = re.sub(r"\[([^\]]+)\]\[[^\]]+\]", r"\1", text)
+
+    # Strip images: ![alt](url) -> remove entirely
+    text = re.sub(r"!\[[^\]]*\]\([^)]+\)", "", text)
+
+    # Strip headers (### Header -> Header)
+    text = re.sub(r"^#{1,6}\s+(.+)$", r"\1", text, flags=re.MULTILINE)
+
+    # Strip bold: **text** or __text__ -> text
+    text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)
+    text = re.sub(r"__([^_]+)__", r"\1", text)
+
+    # Strip italic: *text* or _text_ -> text (but be careful not to match mid-word underscores)
+    text = re.sub(r"\*([^*]+)\*", r"\1", text)
+    text = re.sub(r"(?<!\w)_([^_]+)_(?!\w)", r"\1", text)
+
+    # Strip strikethrough: ~~text~~ -> text
+    text = re.sub(r"~~([^~]+)~~", r"\1", text)
+
+    # Strip blockquote markers (> text)
+    text = re.sub(r"^>\s+", "", text, flags=re.MULTILINE)
+
+    # Strip horizontal rules (---, ***, ___)
+    text = re.sub(r"^[-*_]{3,}\s*$", "", text, flags=re.MULTILINE)
+
+    # Strip unordered list markers (-, *, +)
+    text = re.sub(r"^[\s]*[-*+]\s+", "", text, flags=re.MULTILINE)
+
+    # Strip ordered list markers (1. 2. etc.)
+    text = re.sub(r"^[\s]*\d+\.\s+", "", text, flags=re.MULTILINE)
+
+    # Strip task list markers (- [ ] or - [x])
+    text = re.sub(r"^[\s]*-\s*\[[x ]\]\s+", "", text, flags=re.MULTILINE)
+
+    # Strip HTML tags if any leaked through
+    text = re.sub(r"<[^>]+>", "", text)
+
+    return text
+
+
+def _strip_emojis(text: str) -> str:
+    """
+    Remove emojis and other pictographic characters from text for TTS.
+    Emojis are preserved in the UI but removed before speech synthesis.
+    """
+    # Comprehensive emoji pattern covering most Unicode emoji ranges
+    emoji_pattern = re.compile(
+        "["
+        "\U0001f600-\U0001f64f"  # Emoticons
+        "\U0001f300-\U0001f5ff"  # Symbols & pictographs
+        "\U0001f680-\U0001f6ff"  # Transport & map symbols
+        "\U0001f700-\U0001f77f"  # Alchemical symbols
+        "\U0001f780-\U0001f7ff"  # Geometric shapes extended
+        "\U0001f800-\U0001f8ff"  # Supplemental arrows-C
+        "\U0001f900-\U0001f9ff"  # Supplemental symbols and pictographs
+        "\U0001fa00-\U0001fa6f"  # Chess symbols
+        "\U0001fa70-\U0001faff"  # Symbols and pictographs extended-A
+        "\U00002702-\U000027b0"  # Dingbats
+        "\U000024c2-\U0001f251"  # Enclosed characters
+        "\U0001f004"  # Mahjong tile
+        "\U0001f0cf"  # Playing card
+        "\U0001f170-\U0001f251"  # Enclosed ideographic supplement
+        "]+",
+        flags=re.UNICODE,
+    )
+    return emoji_pattern.sub("", text)
+
+
 def clean_text_for_tts(raw_text: str, language: str = "en") -> str:
     _ = language
     text = raw_text
+    text = _strip_markdown_formatting(
+        text
+    )  # Strip markdown FIRST before other cleaning
+    text = _strip_emojis(text)  # Remove emojis for TTS
     text = _normalize_ligatures_and_symbols(text)
     text = _fix_hyphenation(text)
     text = _strip_headers_footers(text)
